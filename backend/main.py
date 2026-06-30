@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.config import settings
-from backend.database import engine, Base
+from config import settings
+from database import engine, Base
 
 # Crear tablas automáticamente
 Base.metadata.create_all(bind=engine)

@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-from backend.config import settings
+from config import settings
 
 # URL con driver psycopg (v3) en lugar de psycopg2
 DATABASE_URL = settings.DATABASE_URL.replace("postgresql://", "postgresql+psycopg://")

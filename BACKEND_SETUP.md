@@ -1,5 +1,24 @@
 # 🎯 Backend Setup Guide: API → Database → Scheduler
 
+## 🌟 ¿Por qué esto impresiona al profesor?
+
+Open-Meteo ofrece **mucho más que solo temperatura**:
+- `visibility`: Visibilidad (detecta niebla, humo de contaminación)
+- `wind_speed_10m`: Velocidad del viento (correlaciona con congestión)
+- `weather_code`: Código de clima (lluvia, nieve, etc)
+- `cloud_cover`: Cobertura de nubes (condiciones adversas)
+
+**Idea premium:** Crear alertas inteligentes basadas en **múltiples factores**:
+```python
+# Ejemplo: Si la combinación es peligrosa
+if visibility < 500 and wind_speed > 50 and traffic > 300:
+    alert_level = "CRÍTICA - Condiciones peligrosas"
+```
+
+Este tipo de **lógica correlativa** es lo que hace un dashboard realmente útil.
+
+---
+
 ## Estructura de 3 Capas (3 Sprints)
 
 ```
@@ -267,9 +286,216 @@ pip install -r backend/requirements.txt
 
 ---
 
+---
+
+# 📊 Tipos de Datos: SQL vs Python
+
+**¿Sabías que los tipos en SQL Y Python son diferentes?**
+
+| SQL | Python | Ejemplo |
+|-----|--------|---------|
+| `INT` | `int` | `vehiculos = 150` |
+| `FLOAT` | `float` | `temperatura = 22.5` |
+| `VARCHAR(50)` | `str` | `zona = "Centro"` |
+| `TIMESTAMP` | `datetime` | `timestamp = datetime.now()` |
+| `BOOLEAN` | `bool` | `is_congestion = True` |
+
+**Cuando insertamos a la BD, Python convierte automáticamente:**
+```python
+trafico_data = {
+    'zona': 'Centro',        # Python str → SQL VARCHAR
+    'vehiculos': 150,        # Python int → SQL INT
+    'velocidad_promedio': 45.5,  # Python float → SQL FLOAT
+    'timestamp': datetime.now()  # Python datetime → SQL TIMESTAMP
+}
+```
+
+---
+
+# 🔮 Dunder Methods (Double Underscore) - ¿Qué son?
+
+**Dunder methods = "Magic methods" = Métodos especiales de Python**
+
+Controlan cómo se comportan tus objetos:
+
+## Ejemplo 1: `__init__` (Constructor)
+```python
+class Trafico:
+    def __init__(self, zona, vehiculos, velocidad):
+        # Se ejecuta cuando creas: trafico = Trafico("Centro", 150, 45.5)
+        self.zona = zona
+        self.vehiculos = vehiculos
+        self.velocidad = velocidad
+        self.timestamp = datetime.now()
+```
+
+## Ejemplo 2: `__str__` (Qué mostrar en print)
+```python
+class Trafico:
+    def __str__(self):
+        return f"🚗 Tráfico {self.zona}: {self.vehiculos} vehículos a {self.velocidad} km/h"
+
+# Uso:
+trafico = Trafico("Centro", 150, 45.5)
+print(trafico)  # Output: 🚗 Tráfico Centro: 150 vehículos a 45.5 km/h
+```
+
+## Ejemplo 3: `__repr__` (Para debug técnico)
+```python
+class Trafico:
+    def __repr__(self):
+        return f"Trafico(zona='{self.zona}', vehiculos={self.vehiculos})"
+
+# Útil en desarrollo para ver exactamente qué datos tienes
+print(repr(trafico))  # Output: Trafico(zona='Centro', vehiculos=150)
+```
+
+## Ejemplo 4: `__eq__` (Comparación)
+```python
+class Trafico:
+    def __eq__(self, other):
+        # ¿Dos tráficos son iguales si están en la misma zona?
+        return self.zona == other.zona and self.vehiculos == other.vehiculos
+
+# Uso:
+trafico1 = Trafico("Centro", 150, 45.5)
+trafico2 = Trafico("Centro", 150, 45.5)
+print(trafico1 == trafico2)  # True
+```
+
+**¿Para qué sirve en tu proyecto?**
+- `__init__`: Crear objetos TraficoData, CalidadAireData
+- `__str__`: Logs claros ("Centro: 150 vehículos")
+- `__repr__`: Debug en consola
+- `__eq__`: Comparar si hay cambios en los datos
+
+---
+
+# 🎯 Cómo usarás esto en BACKEND
+
+**Estructura propuesta:**
+
+```python
+# backend/models.py (nuevo archivo)
+from datetime import datetime
+
+class TraficoData:
+    def __init__(self, zona, vehiculos, velocidad_promedio):
+        self.zona = zona
+        self.vehiculos = vehiculos
+        self.velocidad_promedio = velocidad_promedio
+        self.timestamp = datetime.now()
+    
+    def __str__(self):
+        return f"Tráfico {self.zona}: {self.vehiculos} veh @ {self.velocidad_promedio} km/h"
+    
+    def to_dict(self):
+        """Convierte a diccionario para insertar en BD"""
+        return {
+            'zona': self.zona,
+            'vehiculos': self.vehiculos,
+            'velocidad_promedio': self.velocidad_promedio,
+            'timestamp': self.timestamp
+        }
+
+class CalidadAireData:
+    def __init__(self, zona, pm25, no2, o3):
+        self.zona = zona
+        self.pm25 = pm25
+        self.no2 = no2
+        self.o3 = o3
+        self.timestamp = datetime.now()
+        self.aqi = self.calculate_aqi()  # ← Usa la función SQL!
+    
+    def calculate_aqi(self):
+        """Llama a la función SQL desde Python"""
+        return (self.pm25 * 0.5 + self.no2 * 0.3 + self.o3 * 0.2)
+    
+    def __str__(self):
+        return f"Aire {self.zona}: PM2.5={self.pm25}, AQI={self.aqi:.1f}"
+```
+
+**Luego usas así en main.py:**
+```python
+# Fetch datos de APIs
+trafico = Trafico("Centro", 150, 45.5)
+aire = CalidadAireData("Centro", 45.2, 32.1, 25.0)
+
+# Logs claros
+print(trafico)  # "Tráfico Centro: 150 veh @ 45.5 km/h"
+print(aire)     # "Aire Centro: PM2.5=45.2, AQI=23.4"
+
+# Inserta en BD
+db.insert_trafico(trafico.to_dict())
+db.insert_aire(aire.to_dict())
+```
+
+---
+
+# 💡 Ideas avanzadas (Para impresionar)
+
+## 1. Alertas inteligentes basadas en múltiples factores
+
+```python
+class AlertaInteligente:
+    def __init__(self, temperatura, visibilidad, viento, trafico):
+        self.temperatura = temperatura
+        self.visibilidad = visibilidad
+        self.viento = viento
+        self.trafico = trafico
+    
+    def evaluar_riesgo(self):
+        riesgo = 0
+        
+        if self.temperatura < 0 and self.visibilidad < 500:
+            riesgo += 3  # Peligro de hielo
+        
+        if self.viento > 50:
+            riesgo += 2  # Vientos peligrosos
+        
+        if self.trafico > 300 and self.visibilidad < 1000:
+            riesgo += 2  # Congestión + mala visibilidad
+        
+        if riesgo >= 5:
+            return "🔴 CRÍTICA"
+        elif riesgo >= 3:
+            return "🟠 ALTA"
+        elif riesgo >= 1:
+            return "🟡 MEDIA"
+        else:
+            return "🟢 BAJA"
+```
+
+## 2. Predicción simple (machine learning basic)
+
+```python
+def predecir_congestión(temperatura, humedad, hora_del_dia):
+    """Predicción básica de congestión"""
+    congestión_base = 100
+    
+    # Horas pico (7-9 AM, 5-7 PM)
+    if hora_del_dia in [7, 8, 17, 18]:
+        congestión_base += 100
+    
+    # Temperatura (gente evita salir si es muy caliente)
+    if temperatura > 30:
+        congestión_base -= 30
+    
+    # Humedad (lluvia → menos tráfico)
+    if humedad > 80:
+        congestión_base -= 20
+    
+    return max(0, congestión_base)
+```
+
+---
+
 **⚠️ NO CONTINÚES HASTA QUE:**
 1. Hayas leído toda la documentación
 2. Hayas respondido las preguntas de cada Sprint
-3. Hayas entendido qué hace cada librería
+3. Hayas entendido:
+   - Qué son los dunder methods
+   - Cómo se mapean tipos SQL ↔ Python
+   - Cómo crear objetos de datos
 
 Cuéntame cuando termines y respondemos juntos. 👨‍💻

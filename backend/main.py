@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from database import engine, Base
+import models
 
 # Crear tablas automáticamente
 Base.metadata.create_all(bind=engine)

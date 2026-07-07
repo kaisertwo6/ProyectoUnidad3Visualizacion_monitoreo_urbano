@@ -79,6 +79,33 @@ def register_callbacks(app):
         )
         return fig
 
+    # --- HELPER: Downsamplear DataFrames para evitar sobrecarga visual ---
+    def downsample_dataframe(df, target_points=80):
+        if df.empty:
+            return df
+        
+        # Asegurar orden cronológico
+        df_sorted = df.sort_values('timestamp')
+        
+        # Si tiene columna 'zona', downsamplear agrupando por zona
+        if 'zona' in df_sorted.columns:
+            dfs = []
+            for zona, group in df_sorted.groupby('zona'):
+                n = len(group)
+                if n <= target_points:
+                    dfs.append(group)
+                else:
+                    step = max(1, n // target_points)
+                    dfs.append(group.iloc[::step])
+            return pd.concat(dfs).sort_values('timestamp')
+        else:
+            n = len(df_sorted)
+            if n <= target_points:
+                return df_sorted
+            else:
+                step = max(1, n // target_points)
+                return df_sorted.iloc[::step].sort_values('timestamp')
+
     # --- HELPER: Crear Tarjeta de Alerta ---
     def generar_div_alerta(nivel, titulo, mensaje):
         icon_map = {
@@ -348,10 +375,12 @@ def register_callbacks(app):
             # ----------------------------------------------------
             # GRÁFICO 1: Historial de Tránsito (Línea Temporal)
             # ----------------------------------------------------
+            df_trafico_plot = downsample_dataframe(df_trafico, 80)
+            
             if zona_seleccionada == "Todas":
                 # Graficar una línea por cada zona para comparación
                 fig1 = px.line(
-                    df_trafico,
+                    df_trafico_plot,
                     x="timestamp",
                     y="vehiculos",
                     color="zona",
@@ -362,7 +391,7 @@ def register_callbacks(app):
             else:
                 # Filtrado o ya viene filtrado de la API
                 fig1 = px.line(
-                    df_trafico,
+                    df_trafico_plot,
                     x="timestamp",
                     y="vehiculos",
                     color_discrete_sequence=["#FF9F43"],
@@ -371,7 +400,7 @@ def register_callbacks(app):
                 )
                 
             fig1.update_traces(line=dict(width=2.5), marker=dict(size=5))
-            fig1 = aplicar_tema_oscuro(fig1, "Carga Vehicular en el Tiempo", "", "Número de Vehículos")
+            fig1 = aplicar_tema_oscuro(fig1, "", "", "Número de Vehículos")
             
             # ----------------------------------------------------
             # GRÁFICO 2: Correlación PM2.5 vs Vehículos (Dispersión)
@@ -382,9 +411,10 @@ def register_callbacks(app):
             if df_merged.empty:
                 fig2 = crear_grafico_vacio("No hay datos coincidentes para la correlación.")
             else:
+                df_merged_plot = downsample_dataframe(df_merged, 120)
                 if zona_seleccionada == "Todas":
                     fig2 = px.scatter(
-                        df_merged,
+                        df_merged_plot,
                         x="vehiculos",
                         y="pm25",
                         color="zona",
@@ -393,14 +423,14 @@ def register_callbacks(app):
                     )
                 else:
                     fig2 = px.scatter(
-                        df_merged,
+                        df_merged_plot,
                         x="vehiculos",
                         y="pm25",
                         color_discrete_sequence=["#00D2C4"],
                         labels={"vehiculos": "Vehículos registrados", "pm25": "PM2.5 (µg/m³)"}
                     )
                 fig2.update_traces(marker=dict(size=10, opacity=0.75, line=dict(width=1, color="rgba(255,255,255,0.15)")))
-                fig2 = aplicar_tema_oscuro(fig2, "Correlación: Impacto del Tránsito en la Polución (PM2.5)", "Cantidad de Vehículos", "PM2.5 (µg/m³)")
+                fig2 = aplicar_tema_oscuro(fig2, "", "Cantidad de Vehículos", "PM2.5 (µg/m³)")
             
             # ----------------------------------------------------
             # GRÁFICO 3: Temperatura vs Cantidad de Vehículos
@@ -423,13 +453,16 @@ def register_callbacks(app):
                 # Ordenar cronológicamente
                 df_grouped = df_grouped.sort_values("timestamp")
                 
+                # Downsamplear
+                df_grouped_plot = downsample_dataframe(df_grouped, 80)
+                
                 # Crear gráfico con doble eje Y usando graph_objects
                 fig3 = go.Figure()
                 
                 # Añadir vehículos en eje Y izquierdo
                 fig3.add_trace(go.Scatter(
-                    x=df_grouped['timestamp'],
-                    y=df_grouped['vehiculos'],
+                    x=df_grouped_plot['timestamp'],
+                    y=df_grouped_plot['vehiculos'],
                     name="Vehículos",
                     mode="lines+markers",
                     line=dict(color="#FF9F43", width=2.5),
@@ -439,8 +472,8 @@ def register_callbacks(app):
                 
                 # Añadir temperatura en eje Y derecho
                 fig3.add_trace(go.Scatter(
-                    x=df_grouped['timestamp'],
-                    y=df_grouped['temperatura'],
+                    x=df_grouped_plot['timestamp'],
+                    y=df_grouped_plot['temperatura'],
                     name="Temperatura (°C)",
                     mode="lines",
                     line=dict(color="#9b5de5", width=2, dash="dash"),
@@ -464,7 +497,7 @@ def register_callbacks(app):
                         side="right"
                     )
                 )
-                fig3 = aplicar_tema_oscuro(fig3, "Efecto de la Temperatura sobre el Flujo Vial (Doble Eje)", "", "")
+                fig3 = aplicar_tema_oscuro(fig3, "", "", "")
                 
             return fig1, fig2, fig3
             
